@@ -3,7 +3,7 @@
 
 ## Python environment setup with Conda
 
-Tested with Python 3.7, PyTorch 1.12.1, and PyTorch Geometric 2.3.1, dgl 1.0.2.
+Tested with Python 3.10.19, PyTorch 2.10.0 (CUDA 12.8), PyTorch Geometric 2.7.0, DGL 2.1.0.
 ```bash
 pip install pandas
 pip install scikit_learn
@@ -30,7 +30,6 @@ For Chameleon and Squirrel, we use the [new splits](https://github.com/yandex-re
 Download `chameleon_filtered.npz`, put it into `./data/geom-gcn/chameleon/`.
 Download `squirrel_filtered.npz`, put it into `./data/geom-gcn/squirrel/`.
 
-For the OGB datasets, they will be downloaded automatically when running the code.
 
 ## Run the codes
 
