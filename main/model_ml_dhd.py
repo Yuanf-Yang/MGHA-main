@@ -318,7 +318,7 @@ class SingleLevelAttention(nn.Module):
         Returns:
             out: [N, hidden]
         """
-        #distance_bias = self.fc_dis(distance_matrix.long())  # [N, K]
+        distance_bias = self.fc_dis(distance_matrix.long())  # [N, K]
 
         d, h = self.out_channels // self.heads, self.heads
         scale = 1.0 / math.sqrt(d)
@@ -596,18 +596,18 @@ class MultiLevelTransformer(nn.Module):
 
     #     self.reset_parameters()
 
-    # def reset_parameters(self):
-    #     for module in self.fc_in:
-    #         if hasattr(module, 'reset_parameters'):
-    #             module.reset_parameters()
-    #     self.gnn.reset_parameters()
-    #     for conv in self.convs:
-    #         conv.reset_parameters()
-    #     for ff in self.ffs:
-    #         for module in ff:
-    #             if hasattr(module, 'reset_parameters'):
-    #                 module.reset_parameters()
-    #     self.fc_out.reset_parameters()
+    def reset_parameters(self):
+        for module in self.fc_in:
+            if hasattr(module, 'reset_parameters'):
+                module.reset_parameters()
+        self.gnn.reset_parameters()
+        for conv in self.convs:
+            conv.reset_parameters()
+        for ff in self.ffs:
+            for module in ff:
+                if hasattr(module, 'reset_parameters'):
+                    module.reset_parameters()
+        self.fc_out.reset_parameters()
 
     def forward(self, data):
         x = data.graph['node_feat']
