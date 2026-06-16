@@ -39,8 +39,8 @@ def parse_method(method, args, c, d, device):
             gdropout=args.gdropout,
             no_gnn=args.no_gnn,
             use_dynamic_gate=args.use_dynamic_gate,
-            no_dist_bias=args.no_dist_bias,
-            no_size_bias=args.no_size_bias,
+            # no_dist_bias=args.no_dist_bias,
+            # no_size_bias=args.no_size_bias,
         ).to(device)
 
     else:
@@ -120,11 +120,11 @@ def parser_add_main_args(parser):
          
          
     #w/o                    
-    parser.add_argument('--no_dist_bias', action='store_true', default=False,
-                        help='Disable node-to-community distance bias')
+    # parser.add_argument('--no_dist_bias', action='store_true', default=False,
+    #                     help='Disable node-to-community distance bias')
 
-    parser.add_argument('--no_size_bias', action='store_true', default=False,
-                        help='Disable community size bias')
+    # parser.add_argument('--no_size_bias', action='store_true', default=False,
+    #                     help='Disable community size bias')
 
 
 
