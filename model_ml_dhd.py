@@ -277,8 +277,8 @@ class Transformer(torch.nn.Module):
 
 class SingleLevelAttention(nn.Module):
     """
-    单个层级的 节点→社区 注意力
-    从原始 TransformerConv.global_forward 提取重构
+    Single-level node-to-community attention
+    Refactored from the original TransformerConv.global_forward
     """
     def __init__(self, in_channels, out_channels, global_dim,
                  heads=1, dropout=0., num_centroids=64,
@@ -313,8 +313,8 @@ class SingleLevelAttention(nn.Module):
         """
         Args:
             x: [N, hidden]
-            distance_matrix: [N, K] 节点到社区的距离
-            nodes_to_community_tensor: [N] 节点所属社区
+            distance_matrix: [N, K] (node-to-community distance)
+            nodes_to_community_tensor: [N] (the community to which the node belongs)
         Returns:
             out: [N, hidden]
         """
@@ -325,7 +325,7 @@ class SingleLevelAttention(nn.Module):
 
         q_x = self.lin_proj_g(x)
 
-        # 社区平均特征
+        # Community average features
         P = F.one_hot(
             nodes_to_community_tensor, num_classes=self.num_centroids
         ).float()
@@ -340,43 +340,43 @@ class SingleLevelAttention(nn.Module):
 
         q, k, v = map(lambda t: rearrange(t, 'n (h d) -> h n d', h=h), (q, k, v))
 
-        # 注意力分数
+        # Attention scores
         dots = torch.einsum('h i d, h j d -> h i j', q, k) * scale
 
-        # 社区大小偏置
-#        c, c_count = nodes_to_community_tensor.squeeze().to(
-#            torch.short).unique(return_counts=True)
-#        centroid_count = torch.zeros(
-#            self.num_centroids, dtype=torch.long).to(x.device)
-#        centroid_count[c.to(torch.long)] = c_count
-#        dots += torch.log(centroid_count.view(1, 1, -1).clamp(min=1))
+        # Community SizeBias
+        c, c_count = nodes_to_community_tensor.squeeze().to(
+            torch.short).unique(return_counts=True)
+        centroid_count = torch.zeros(
+            self.num_centroids, dtype=torch.long).to(x.device)
+        centroid_count[c.to(torch.long)] = c_count
+        dots += torch.log(centroid_count.view(1, 1, -1).clamp(min=1))
 #
-#        # 距离偏置
-#        dots += distance_bias.view(
-#            1, distance_bias.shape[0], distance_bias.shape[1])
-         # 社区大小偏置 SizeBias
-        if not self.no_size_bias:
-            c, c_count = nodes_to_community_tensor.squeeze().to(
-                torch.short).unique(return_counts=True)
-            centroid_count = torch.zeros(
-                self.num_centroids, dtype=torch.long).to(x.device)
-            centroid_count[c.to(torch.long)] = c_count
+#        # DistBias
+        dots += distance_bias.view(
+            1, distance_bias.shape[0], distance_bias.shape[1])
+         #Ablation: Community SizeBias
+        # if not self.no_size_bias:
+        #     c, c_count = nodes_to_community_tensor.squeeze().to(
+        #         torch.short).unique(return_counts=True)
+        #     centroid_count = torch.zeros(
+        #         self.num_centroids, dtype=torch.long).to(x.device)
+        #     centroid_count[c.to(torch.long)] = c_count
 
-            size_bias = torch.log(
-                centroid_count.view(1, 1, -1).clamp(min=1).float()
-            )
-            dots = dots + size_bias
+        #     size_bias = torch.log(
+        #         centroid_count.view(1, 1, -1).clamp(min=1).float()
+        #     )
+        #     dots = dots + size_bias
 
-        # 距离偏置 DistBias
-        if not self.no_dist_bias:
-            distance_bias = self.fc_dis(distance_matrix.long())  # [N, K]
-            dots = dots + distance_bias.view(
-                1, distance_bias.shape[0], distance_bias.shape[1]
-            )
+        # # Ablation: DistBias
+        # if not self.no_dist_bias:
+        #     distance_bias = self.fc_dis(distance_matrix.long())  # [N, K]
+        #     dots = dots + distance_bias.view(
+        #         1, distance_bias.shape[0], distance_bias.shape[1]
+        #     )
 
 
 
-        # 注意力权重 + 输出
+        # Attention weights + Output
         attn = self.attn_fn(dots, dim=-1)
         attn = F.dropout(attn, p=self.dropout, training=self.training)
 
@@ -392,8 +392,8 @@ class SingleLevelAttention(nn.Module):
 
 class DynamicHierarchyGate(nn.Module):
     """
-    节点自适应的层次权重选择
-    每个节点根据自身特征动态决定关注哪个粗化层次
+    Node-adaptive hierarchical weight selection
+    Each node dynamically decides which coarsening level to attend to based on its own features.
     """
     def __init__(self, hidden_channels, num_levels):
         super().__init__()
@@ -405,7 +405,7 @@ class DynamicHierarchyGate(nn.Module):
             nn.Linear(hidden_channels // 2, num_levels),
         )
 
-        # 层次级别偏置（先验：低层次通常更重要）
+        # Hierarchical level bias (prior)
         self.level_bias = nn.Parameter(torch.zeros(num_levels))
 
     def reset_parameters(self):
@@ -434,7 +434,7 @@ class DynamicHierarchyGate(nn.Module):
 
 class MultiLevelTransformerConv(nn.Module):
     """
-    多层次注意力 + 动态融合
+    Hierarchical attention + Dynamic fusion
     """
     def __init__(self, in_channels, out_channels, global_dim, heads,
                  dropout, num_centroids_list, use_dynamic_gate=True,
@@ -448,7 +448,7 @@ class MultiLevelTransformerConv(nn.Module):
         self.no_size_bias = no_size_bias
 
 
-        # 每个层级独立的注意力模块
+        # Independent attention modules at each level
         self.level_attentions = nn.ModuleList([
             SingleLevelAttention(
                 in_channels=in_channels,
@@ -463,14 +463,14 @@ class MultiLevelTransformerConv(nn.Module):
             for l in range(self.num_levels)
         ])
 
-        # 动态层次门控
+        # Dynamic hierarchical gating
         if use_dynamic_gate:
             self.hierarchy_gate = DynamicHierarchyGate(
                 hidden_channels=out_channels,
                 num_levels=self.num_levels,
             )
         else:
-            # 可学习的静态权重（消融实验用）
+            # Learnable static weights
             self.fusion_weight = nn.Parameter(
                 torch.ones(self.num_levels) / self.num_levels
             )
@@ -504,9 +504,9 @@ class MultiLevelTransformerConv(nn.Module):
 
 class MultiLevelTransformer(nn.Module):
     """
-    多层次图Transformer + 动态权重选择
+    Multi-level Graph Transformer + Dynamic Weight Selection
 
-    架构: fc_in → [MultiLevelTransformerConv + FFN] × L → (+GCN) → fc_out
+    Architecture: fc_in → [MultiLevelTransformerConv + FFN] × L → (+GCN) → fc_out    
     """
     def __init__(self, in_channels, hidden_channels, out_channels, global_dim,
                  num_layers, heads, ff_dropout, attn_dropout,
@@ -523,7 +523,7 @@ class MultiLevelTransformer(nn.Module):
         self.no_size_bias = no_size_bias
 
 
-        # GCN 分支
+        # GCN Optional
         self.gnn = GCN(in_channels, ghidden_channels, ghidden_channels,
                        gnum_layers, gdropout)
 
@@ -532,7 +532,7 @@ class MultiLevelTransformer(nn.Module):
         elif norm_type == 'layer_norm':
             norm_func = nn.LayerNorm
 
-        # 输入投影
+        # Input projection
         if no_bn:
             self.fc_in = nn.Sequential(
                 nn.Linear(in_channels, hidden_channels),
@@ -549,7 +549,7 @@ class MultiLevelTransformer(nn.Module):
                 nn.Linear(hidden_channels, hidden_channels)
             )
 
-        # 多层次 Transformer 层
+        # Multi-level Transformer layer
         self.convs = nn.ModuleList()
         self.ffs = nn.ModuleList()
 
@@ -591,23 +591,23 @@ class MultiLevelTransformer(nn.Module):
 
         self.fc_out = nn.Linear(hidden_channels, out_channels)
 
-        # 存储门控权重（用于分析）
-        self.last_gates = None
+        # Stored gating weights
+    #     self.last_gates = None
 
-        self.reset_parameters()
+    #     self.reset_parameters()
 
-    def reset_parameters(self):
-        for module in self.fc_in:
-            if hasattr(module, 'reset_parameters'):
-                module.reset_parameters()
-        self.gnn.reset_parameters()
-        for conv in self.convs:
-            conv.reset_parameters()
-        for ff in self.ffs:
-            for module in ff:
-                if hasattr(module, 'reset_parameters'):
-                    module.reset_parameters()
-        self.fc_out.reset_parameters()
+    # def reset_parameters(self):
+    #     for module in self.fc_in:
+    #         if hasattr(module, 'reset_parameters'):
+    #             module.reset_parameters()
+    #     self.gnn.reset_parameters()
+    #     for conv in self.convs:
+    #         conv.reset_parameters()
+    #     for ff in self.ffs:
+    #         for module in ff:
+    #             if hasattr(module, 'reset_parameters'):
+    #                 module.reset_parameters()
+    #     self.fc_out.reset_parameters()
 
     def forward(self, data):
         x = data.graph['node_feat']
